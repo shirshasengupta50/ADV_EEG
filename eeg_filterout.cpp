@@ -1,67 +1,71 @@
-#define SAMPLE_RATE 256 
+// Define constants
+#define SAMPLING_RATE 256 
 #define BAUD_RATE 115200
 #define INPUT_PIN 35
 
+// Function prototypes
+void setupEEG();
+float applyEEGFilter(float input);
 
 void setup() {
-  // Serial connection begin
-  Serial.begin(BAUD_RATE);
+  // Begin serial communication
+  setupEEG();
 }
 
 void loop() { 
-  // Calculate elapsed time
-  static unsigned long past = 0;
-  unsigned long present = micros();
-  unsigned long interval = present - past;
-  past = present;
+  // Calculate time intervals
+  static unsigned long prevTime = 0;
+  unsigned long currTime = micros();
+  unsigned long elapsedTime = currTime - prevTime;
+  prevTime = currTime;
 
   // Run timer
-  static long timer = 0;
-  timer -= interval;
+  static long timerCounter = 0;
+  timerCounter -= elapsedTime;
 
-  // Sample
-  if(timer < 0){
-    timer += 1000000 / SAMPLE_RATE;
-    float sensor_value = analogRead(INPUT_PIN);
-    float signal = EEGFilter(sensor_value);
-    Serial.println(signal);
+  // Sample and filter
+  if (timerCounter < 0) {
+    timerCounter += 1000000 / SAMPLING_RATE;
+    float sensorReading = analogRead(INPUT_PIN);
+    float filteredSignal = applyEEGFilter(sensorReading);
+    Serial.println(filteredSignal);
   }
 }
 
-// Band-Pass Butterworth IIR digital filter, generated using filter_gen.py.
-// Sampling rate: 256.0 Hz, frequency: [0.5, 29.5] Hz.
-// Filter is order 4, implemented as second-order sections (biquads).
+// Function to setup EEG
+void setupEEG() {
+  Serial.begin(BAUD_RATE); // Initialize serial communication
+}
 
+// Function to apply EEG filter
+float applyEEGFilter(float input) {
+  static float prevOutput = 0;
+  static float filterState1 = 0, filterState2 = 0;
 
-float EEGFilter(float input) {
-  float output = input;
-  {
-    static float z1, z2; // filter section state
-    float x = output - -0.95391350*z1 - 0.25311356*z2;
-    output = 0.00735282*x + 0.01470564*z1 + 0.00735282*z2;
-    z2 = z1;
-    z1 = x;
-  }
-  {
-    static float z1, z2; // filter section state
-    float x = output - -1.20596630*z1 - 0.60558332*z2;
-    output = 1.00000000*x + 2.00000000*z1 + 1.00000000*z2;
-    z2 = z1;
-    z1 = x;
-  }
-  {
-    static float z1, z2; // filter section state
-    float x = output - -1.97690645*z1 - 0.97706395*z2;
-    output = 1.00000000*x + -2.00000000*z1 + 1.00000000*z2;
-    z2 = z1;
-    z1 = x;
-  }
-  {
-    static float z1, z2; // filter section state
-    float x = output - -1.99071687*z1 - 0.99086813*z2;
-    output = 1.00000000*x + -2.00000000*z1 + 1.00000000*z2;
-    z2 = z1;
-    z1 = x;
-  }
+  // First section
+  float x = input - -0.95391350 * filterState1 - 0.25311356 * filterState2;
+  float output = 0.00735282 * x + 0.01470564 * filterState1 + 0.00735282 * filterState2;
+  filterState2 = filterState1;
+  filterState1 = x;
+
+  // Second section
+  x = output - -1.20596630 * filterState1 - 0.60558332 * filterState2;
+  output = 1.00000000 * x + 2.00000000 * filterState1 + 1.00000000 * filterState2;
+  filterState2 = filterState1;
+  filterState1 = x;
+
+  // Third section
+  x = output - -1.97690645 * filterState1 - 0.97706395 * filterState2;
+  output = 1.00000000 * x + -2.00000000 * filterState1 + 1.00000000 * filterState2;
+  filterState2 = filterState1;
+  filterState1 = x;
+
+  // Fourth section
+  x = output - -1.99071687 * filterState1 - 0.99086813 * filterState2;
+  output = 1.00000000 * x + -2.00000000 * filterState1 + 1.00000000 * filterState2;
+  filterState2 = filterState1;
+  filterState1 = x;
+
+  // Return filtered output
   return output;
 }
